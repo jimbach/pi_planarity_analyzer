@@ -1,0 +1,13 @@
+#calculates the normal vectors on a molecule surface based on 4 reference vectors
+#then gives them a direction according to molecule bending
+#after this a "vorzugsvectors" is calculated, as a sum over all normal vectors
+#input: timestep, indx1, indx2, indx3, indx4, indx5,
+#indx6, direction_indx1, direction_indx2,
+ direction_indx3, direction_indx4,
+#number_of_atoms_per_mol, number_of_mol_per_cluster, atoms_per_cluster,
+#atoms_to_skip_until_next_mol_in_cluster
+#see the bachelor thesis for the definition of vectors. vectos are
+#from middle of id1 and id2 to the id's as named in the thesis.
+DPIVEC
+1 23 53 43 28 19 54 69 42 31 4 118 3 740 386 0
+END

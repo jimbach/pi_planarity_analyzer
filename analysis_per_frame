@@ -1,0 +1,852 @@
+#!/usr/bin/python
+
+import os,sys,numpy as np
+
+#######   28.07.2013 - analysis_per_frame   ########
+####### script to analyse .gro trajectories ########
+
+if 1==1:																									#check the input
+	SCRIPT=sys.argv[0].split('/')
+	NARGS=len(sys.argv)-1
+	THELP=['-h','-help']
+
+	if NARGS<2 or (NARGS>0 and sys.argv[1] in THELP):
+		print""
+		print"parameterexpected:",SCRIPT[len(SCRIPT)-1],
+		print"[input.gro] [control_file.fcf]"
+		print""
+		sys.exit(0)
+
+	if (sys.argv[1][-4:] != ".gro") or (sys.argv[2][-4:] != ".fcf"):
+		print""
+		print" wrong input format"
+		print" expected: [input.gro] [control_file.fcf]"
+		print""
+		sys.exit(0)
+	if NARGS<3:
+		print""
+		print" no .top input found - dont worry if you're not using COM-trajectory generation"
+		print""
+	elif sys.argv[3]!="NULL": 
+		if sys.argv[3][-4:]!=".top":
+			print""
+			print" wrong input format"
+			print" expected: [input.gro] [control_file.fcf] [topology.top] opt: [start_time] [end_time]"
+			print""
+			sys.exit(0)
+
+if 1==1:																							#define output file
+#	OUT="mittelwerte.dat"
+	STDOUT=sys.stdout
+#	sys.stdout=open(OUT,'w')
+
+if 1==1:																							#initialize variables
+																											#these variables are meant to be read only
+	number_of_atoms = 0																	#contains the number of atoms			
+	inputDATA = []																			#use adressing: inputDATA[atomnumber][0=resnumber 1=resname 2=atomname 3=atomnr 4=x 5=y 6=z]
+	ipoint =  0
+	reset = 0
+#	count_atoms = 0
+	timestep = 0.0
+	atomdistkey, moldistkey, comdistkey, angleskey, dipbi_vec_key, C5_P3HT_ang_key, com_key, masses_data, read_done = 0,0, 0, 0, 0, 0, 0, 0, 0
+	vector_correlation_key, c5_planaritaet_key, p3_sidechain_key = 0, 0, 0
+	ATOMD_list, MOLD_list, COMD_list, ANGLES_list, masses_list = [],[],[],[],[]								#for reading data
+	no_timestep = 0
+	no_end_timestep = 0
+	if NARGS<4: no_timestep = 1
+	if NARGS<5: no_end_timestep = 1
+
+coords=open(sys.argv[1])										#for headlines
+format_control_file=open(sys.argv[2])	
+
+######## In this part the control file is read
+while 1:
+	cf_line = format_control_file.readline()
+
+	if not cf_line:	break										#stop when reaching end of file
+	if len(cf_line)<=1:	continue								#skip empty lines
+	cf_keyword = cf_line.split()[0]																					
+	if cf_keyword[:1]=="#": continue								#skip comments
+
+	if cf_keyword=="ATOMD":			atomdistkey = 1						#manage keywords
+	if cf_keyword=="MOLD":			moldistkey = 1
+	if cf_keyword=="COMD":			comdistkey = 1
+	if cf_keyword=="ANGLES":		angleskey = 1
+	if cf_keyword=="DPIVEC":		dipbi_vec_key = 1
+	if cf_keyword=="C5_P3HT_ANGLES":	C5_P3HT_ang_key = 1
+	if cf_keyword=="COM_MOL":		com_key = 1
+	if cf_keyword=="VEC_CORRELATION":	vector_correlation_key = 1
+	if cf_keyword=="C5_PLANARITAET":	c5_planaritaet_key  = 1
+	if cf_keyword=="P3HT_SIDECHAINS":	p3_sidechain_key  = 1
+
+
+
+	if atomdistkey == 1:
+		if cf_keyword == 'END':
+			atomdistkey = 2
+			continue
+		ATOMD_list.append([cf_line.split()])
+
+	if moldistkey == 1:
+		if cf_keyword == 'END':
+			moldistkey = 2
+			continue
+		MOLD_list.append([cf_line.split()])
+
+	if atomdistkey == 1:
+		if cf_keyword == 'END':
+			comdistkey = 2
+			continue
+		COMD_list.append([cf_line.split()])
+
+	if angleskey == 1:
+		if cf_keyword == 'END':
+			angleskey = 2
+			continue
+		ANGLES_list.append([cf_line.split()])
+
+	if dipbi_vec_key == 1:
+		if len(cf_line.split())>1:
+			tmplist = map(lambda y:int(y), cf_line.split())
+			dipbi_vec_step, dv_id1, dv_id2, dv_id3, dv_id4, dv_id5, dv_id6, dv_did1, dv_did2, dv_did3, dv_did4, dv_atoms_per_mol, dv_mol_per_clust, atoms_per_clust, dv_startatom, dv_atoms_to_skip =tmplist
+
+		if cf_keyword == 'END':
+			dipbi_vec_key = 2
+		#	DPI_out=open("DPI_vectors.dat",'w')	#erases data
+		#	DPI_out.close()
+
+	if vector_correlation_key == 1:
+		if len(cf_line.split())>1:
+			tmplist1 = map(lambda y:int(y), cf_line.split())
+			nd_step, D_id1, D_id2, D_id3, D_id4, D_id5, D_id6, D_atoms_per_clust, D_mol_per_clust, D_atoms_per_mol, D_startatom, D_atoms_t_skip, nd_id1, nd_id2, nd_id3, nd_id4, nd_id5, nd_atoms_t_skip, nd_c5_per_cluster, nd_atms_in_clulster=tmplist1 
+		
+
+
+
+		if cf_keyword == 'END':
+			vector_correlation_key = 2
+		#	vec_corr=open("vector_correlation.dat",'w')	#erases data
+		#	vec_corr.close()
+			continue
+
+
+
+	if c5_planaritaet_key == 1:
+		if len(cf_line.split())>1:
+			tmplist1 = map(lambda y:int(y), cf_line.split())
+			C5_plan_step, C5_plan_atomid1, C5_plan_atomid2, C5_plan_atomid3, C5_plan_atomid4, C5_plan_atomid5, C5_plan_atoms_to_skip, C5_plan_atoms_in_cluster, C5_plan_no_of_c5_per_cluster =tmplist1 
+		if cf_keyword == 'END':
+			c5_planaritaet_key = 2
+		#	P3HT_out=open("C5_planaritaet.dat",'w')	#erases data
+		#	P3HT_out.close()
+
+
+
+	if com_key == 1:
+		TOP_in=open(sys.argv[3])
+		skip = 0
+		while 1 and read_done==0:			#read masses from .top
+			lineTOP = TOP_in.readline()		#to avoid smaug killing
+			if len(lineTOP)<=1:	continue	#skip empty lines
+			if not lineTOP: 	break
+			lineTOPsplit=lineTOP.split()[0]			#manage keywords
+			if skip==1: 
+				skip=0
+				if lineTOPsplit=="END":	break
+				else: continue
+			if lineTOPsplit[:1]=="#": continue	#comments
+			if lineTOPsplit=="SOLUTEATOM":	masses_data=1
+			if masses_data==1:
+				if lineTOPsplit=="SOLUTEATOM": 	continue
+				if lineTOPsplit=="END":	break
+				#elif lineTOPsplit=="END":	break
+				elif lineTOP[:5]=="     ":	continue
+				elif len(lineTOP.split())>7 and lineTOP.split()[7] > 6:	
+					skip = 1
+					#if str(lineTOP) == "END": break		
+					masses_list.append(float(lineTOP.split()[4]))
+				else: 
+					#if str(lineTOP) == "END": break			
+					masses_list.append(float(lineTOP.split()[4]))
+		read_done = 1
+		if len(cf_line.split())>1:
+			tmplist = map(lambda y:int(y), cf_line.split())
+			COM_step, start_atom, atoms_per_molecule, atoms_to_skip, num_of_mol, atoms_per_clust =tmplist 		
+		if cf_keyword == 'END':
+			com_key = 2
+		#	COM_out=open("COM.xyz",'w')		#erases data
+		#	COM_out.close()
+
+	if C5_P3HT_ang_key == 1:
+		if len(cf_line.split())>1:
+			tmplist = map(lambda y:int(y), cf_line.split())
+			C5_P3HT_step, atomid1, atomid2, atomid3, atomid4, atomid5, atoms_to_skip, atoms_in_cluster, no_of_c5_per_cluster =tmplist 
+		if cf_keyword == 'END':
+			C5_P3HT_ang_key = 2
+		#	P3HT_out=open("P3HT_angles.dat",'w')	#erases data
+		#	P3HT_out.close()
+
+	if p3_sidechain_key == 1:
+		if len(cf_line.split())>1:
+			tmplist = map(lambda y:int(y), cf_line.split())
+			p3_sc_step, sc1, sc2, atoms_to_skip, atoms_in_cluster, no_of_c5_per_cluster =tmplist 
+		if cf_keyword == 'END':
+			p3_sidechain_key = 2
+		#	P3HT_out=open("P3HT_angles.dat",'w')	#erases data
+		#	P3HT_out.close()	
+
+######## Define your scripts here
+######## They should be able to analyze one single .gro file
+
+######## Calculate angle between nearby DIPBI of C5 rings
+def neighbour_direction(ATOM_list, boxX, boxY, boxZ, num_of_atoms, time_step, Did1, Did2, Did3, Did4, Did5, Did6, Datoms_per_clust, Dmol_per_clust, Datoms_per_mol, Dstartatom, Datoms_t_skip, id1, id2, id3, id4, id5, atoms_t_skip, c5_per_cluster, atms_in_clulster):
+	dpbi_normal_vectors = []
+	#control_out=open("check.xyz",'w')
+	#calculate normal vectors on DPBI
+
+	#atms_in_clulster = 740
+	#id1=1
+	#id2=2
+	#id3=4
+	#id4=5
+	#id5=6
+	#atoms_t_skip=12
+	#c5_per_cluster=32
+
+	for clust_count in range(0,(num_of_atoms/Datoms_per_clust-1)):
+		for i_dpbi in range(0,Dmol_per_clust):
+			r = []
+			#get the 'middle' of the DPI molecule
+			i = clust_count*Datoms_per_clust + i_dpbi*Datoms_per_mol + i_dpbi*Datoms_t_skip + Dstartatom
+
+			#read data into a coord list to remove the box
+			r.append([ATOM_list[i+Did1][4],ATOM_list[i+Did1][5],ATOM_list[i+Did1][6]])
+			r.append([ATOM_list[i+Did2][4],ATOM_list[i+Did2][5],ATOM_list[i+Did2][6]])
+			r.append([ATOM_list[i+Did3][4],ATOM_list[i+Did3][5],ATOM_list[i+Did3][6]])
+			r.append([ATOM_list[i+Did4][4],ATOM_list[i+Did4][5],ATOM_list[i+Did4][6]])
+			r.append([ATOM_list[i+Did5][4],ATOM_list[i+Did5][5],ATOM_list[i+Did5][6]])
+			r.append([ATOM_list[i+Did6][4],ATOM_list[i+Did6][5],ATOM_list[i+Did6][6]])
+
+			#remove the box, use r(0) as reference. if the dinstance to r(0) is bigger than /2boxlength -> move it
+	#		for cow in range(1,len(r)-1):
+	#			if (r[0][0] - r[cow][0])<-boxX/2: r[cow][0] = r[cow][0]-boxX
+	#			if (r[0][0] - r[cow][0])>boxX/2: r[cow][0] = r[cow][0]+boxX
+	#			if (r[0][1] - r[cow][0])<-boxY/2: r[cow][1] = r[cow][1]-boxY
+	#			if (r[0][1] - r[cow][0])>boxY/2: r[cow][1] = r[cow][1]+boxY
+	#			if (r[0][2] - r[cow][0])<-boxZ/2: r[cow][2] = r[cow][2]-boxZ
+	#			if (r[0][2] - r[cow][0])>boxZ/2: r[cow][2] = r[cow][2]+boxZ
+
+			#save the vectors for centering
+			vec1 = np.asarray([r[0][0],r[0][1],r[0][2]])
+			vec2 = np.asarray([r[1][0],r[1][1],r[1][2]])
+			mittelpunkt_dpi = (vec1 + vec2)/2.0
+	#		control_out.write('H' + '	' + str(mittelpunkt_dpi*10).replace('[', '').replace(']','') + '\n')
+			
+
+			#save the reference vectors
+			#second int (e.g. [i+'second_int'+386]) is the index of the reference vector in the original dpi.g96
+			ref_vec1 = np.asarray([r[2][0],r[2][1],r[2][2]])
+			ref_vec2 = np.asarray([r[3][0],r[3][1],r[3][2]])
+			ref_vec3 = np.asarray([r[4][0],r[4][1],r[4][2]])
+			ref_vec4 = np.asarray([r[5][0],r[5][1],r[5][2]])
+
+			#get the cross product of ref_vectors
+			normal_vec1=np.cross(ref_vec1-mittelpunkt_dpi, ref_vec2-mittelpunkt_dpi)
+			normal_vec2=np.cross(ref_vec2-mittelpunkt_dpi, ref_vec3-mittelpunkt_dpi)
+			normal_vec3=np.cross(ref_vec1-mittelpunkt_dpi, ref_vec4-mittelpunkt_dpi)
+			normal_vec4=np.cross(ref_vec3-mittelpunkt_dpi, ref_vec1-mittelpunkt_dpi)
+
+			#normalize
+			normal_vec1=normal_vec1/np.linalg.norm(normal_vec1)
+			normal_vec2=normal_vec2/np.linalg.norm(normal_vec2)
+			normal_vec3=normal_vec3/np.linalg.norm(normal_vec3)
+			normal_vec4=normal_vec4/np.linalg.norm(normal_vec4)
+
+			
+			#calculate average of the 4 vectors
+			normal_vec = normal_vec1+normal_vec2+normal_vec3+normal_vec4
+			normal_vec = normal_vec/np.linalg.norm(normal_vec)			
+		#	if (clust_count == 0) and (i_dpbi==0):
+		#		control_out.write('H' + '	' + str(mittelpunkt_dpi*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('C' + '	' + str((mittelpunkt_dpi+normal_vec1)*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('Ne' + '	' + str((mittelpunkt_dpi+normal_vec2)*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('He' + '	' + str((mittelpunkt_dpi+normal_vec3)*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('O' + '	' + str((mittelpunkt_dpi+normal_vec4)*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('Cl' + '	' + str((mittelpunkt_dpi+normal_vec)*10).replace('[', '').replace(']','') + '\n')
+			dpbi_normal_vectors.append(normal_vec)
+			dpbi_normal_vectors.append(mittelpunkt_dpi)
+	#now the normal vectors on the DIPBI are in the list dpbi_normal_vectors as np.ndarray
+
+	#now calculate the vectors on P3HT C5 rings
+	#here the atom ids for the calculation of the reference vectors are defined
+	c5_vectors = []
+	#atms_in_clulster = 740
+	#id1=1
+	#id2=2
+	#id3=4
+	#id4=5
+	#id5=6
+	#atoms_t_skip=12
+	#c5_per_cluster=32
+
+	for clust_count in range(0,(num_of_atoms/atms_in_clulster-1)):
+		i = clust_count*atms_in_clulster
+		for c5_count in range(0,c5_per_cluster):
+			#read data into a coord list to remove the box
+			r = []
+			r.append([ATOM_list[i+id1+atoms_t_skip*c5_count][4],ATOM_list[i+id1+atoms_t_skip*c5_count][5],ATOM_list[i+id1+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id2+atoms_t_skip*c5_count][4],ATOM_list[i+id2+atoms_t_skip*c5_count][5],ATOM_list[i+id2+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id3+atoms_t_skip*c5_count][4],ATOM_list[i+id3+atoms_t_skip*c5_count][5],ATOM_list[i+id3+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id4+atoms_t_skip*c5_count][4],ATOM_list[i+id4+atoms_t_skip*c5_count][5],ATOM_list[i+id4+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id5+atoms_t_skip*c5_count][4],ATOM_list[i+id5+atoms_t_skip*c5_count][5],ATOM_list[i+id5+atoms_t_skip*c5_count][6]])
+			
+			#remove the box, use r(0) as reference. if the dinstance to r(0) is bigger than /2boxlength -> move it
+	#		for cow in range(1,len(r)-1):
+	#			if (r[0][0] - r[cow][0])<-boxX/2: r[cow][0] = r[cow][0]-boxX
+	#			if (r[0][0] - r[cow][0])>boxX/2: r[cow][0] = r[cow][0]+boxX
+	#			if (r[0][1] - r[cow][0])<-boxY/2: r[cow][1] = r[cow][1]-boxY
+	#			if (r[0][1] - r[cow][0])>boxY/2: r[cow][1] = r[cow][1]+boxY
+	#			if (r[0][2] - r[cow][0])<-boxZ/2: r[cow][2] = r[cow][2]-boxZ
+	#			if (r[0][2] - r[cow][0])>boxZ/2: r[cow][2] = r[cow][2]+boxZ
+			
+			#get the vectors of one c5 ring
+			vec1 = np.asarray(r[0])
+			vec2 = np.asarray(r[1])
+			vec3 = np.asarray(r[2])
+			vec4 = np.asarray(r[3])
+			vec5 = np.asarray(r[4])
+			#middle of 5 vectors
+			c5_position = (vec1+vec2+vec3+vec4+vec5)/5.0
+	#		control_out.write('O' + '	' + str(c5_position*10).replace('[', '').replace(']','') + '\n')
+			
+			#get the normal vector on c5 ring as average over normal vectors
+			# - from visualization in VMD
+			vec_ref1 = -np.cross(c5_position-vec1, c5_position-vec2)
+			vec_ref2 = -np.cross(c5_position-vec1, c5_position-vec3)
+			vec_ref3 = np.cross(c5_position-vec1, c5_position-vec4)
+			vec_ref4 = np.cross(c5_position-vec1, c5_position-vec5)
+			c5_normal_vector = vec_ref1+vec_ref2+vec_ref3+vec_ref4
+			c5_normal_vector = c5_normal_vector/np.linalg.norm(c5_normal_vector)
+			c5_vectors.append(c5_normal_vector)
+			c5_vectors.append(c5_position)	
+	#now the normal vectors on the C5 rings are in the list c5_vectors as np.ndarray	
+	
+	#sort the coordinates into a grid for fast neighbour searching
+	box_grid_size_x = boxX / (number_of_atoms / 200.0)**(1.0/3.0) #~200 atoms per grid ~1 molecule
+	box_grid_size_y = boxY / (number_of_atoms / 200.0)**(1.0/3.0) #~200 atoms per grid ~1 molecule
+	box_grid_size_z = boxZ / (number_of_atoms / 200.0)**(1.0/3.0) #~200 atoms per grid ~1 molecule
+	box_max_x =int(boxX/box_grid_size_x)
+	box_max_y =int(boxY/box_grid_size_y)
+	box_max_z =int(boxZ/box_grid_size_z)
+	grid_dpbi_array = [[[[] for col in range(box_max_x)] for row in range(box_max_y)] for depth in range(box_max_z) ]
+	grid_P3HT_array = [[[[] for col in range(box_max_x)] for row in range(box_max_y)] for depth in range(box_max_z) ]
+	#generate neighbour list for DPBI
+	for counter in range(0,len(dpbi_normal_vectors)/2):	#/2 because normal vectors and positions are saved
+		#calculate grid index
+		x = int(dpbi_normal_vectors[2*counter+1][0]/box_grid_size_x)
+		y = int(dpbi_normal_vectors[2*counter+1][1]/box_grid_size_y)
+		z = int(dpbi_normal_vectors[2*counter+1][2]/box_grid_size_z)
+		#push it round the box
+		if x > box_grid_size_x: x = x - box_max_x
+		if y > box_grid_size_y: y = y - box_max_y
+		if z > box_grid_size_z: z = z - box_max_z
+		if x < 0 : x = x + box_max_x
+		if y < 0 : y = y + box_max_y
+		if z < 0 : z = z + box_max_z
+		#write to array
+		grid_dpbi_array[x][y][z].append(2*counter)
+	#generate neighbour list for P3HT
+	for counter in range(0,len(c5_vectors)/2):	#/2 because normal vectors and positions are saved
+		#calculate grid index
+		x = int(c5_vectors[2*counter+1][0]/box_grid_size_x)
+		y = int(c5_vectors[2*counter+1][1]/box_grid_size_y)
+		z = int(c5_vectors[2*counter+1][2]/box_grid_size_z)
+		#push it round the box
+		if x > box_grid_size_x: x = x - box_max_x
+		if y > box_grid_size_y: y = y - box_max_y
+		if z > box_grid_size_z: z = z - box_max_z
+		if x < 0 : x = x + box_max_x
+		if y < 0 : y = y + box_max_y
+		if z < 0 : z = z + box_max_z
+		#write to array
+		grid_P3HT_array[x][y][z].append(2*counter)
+
+	####for checking the neighbour list generation
+	#for cou1 in range(0,3):
+	#	for cou2 in range(0,box_max_y):
+	#		for cou3 in range(0,box_max_z):
+	#			print str(cou1) +', '+ str(cou2) +', '+ str(cou3) +': '+ str(len(grid_dpbi_array[cou1][cou2][cou3]))
+	#print 'P3HT_list'
+	#for cou1 in range(0,3):
+	#	for cou2 in range(0,box_max_y):
+	#		for cou3 in range(0,box_max_z):
+	#			print str(cou1) +', '+ str(cou2) +', '+ str(cou3) + ': '+str(len(grid_P3HT_array[cou1][cou2][cou3]))
+
+	vec_corr=open("vector_correlation.dat",'a')
+	#now a list was generated, each cell is containing nearby atoms. to see which atoms
+	#are in close range to each other, one only has to search one cell and its 26 neighbouring cells
+	
+	#calculate the correlation between P3HT and DIPBI in radius of 10 Angstr. using grid search
+	#loop through the grid
+	for counter_x in range(0,box_max_x):
+		for counter_y in range(0,box_max_y):
+			for counter_z in range(0,box_max_z):
+				if len(grid_P3HT_array[counter_x][counter_y][counter_z])>0:
+					#sit on P3HT and watch the DIPBI nearby
+					for P3HT_count in range(0,len(grid_P3HT_array[counter_x][counter_y][counter_z])-1):
+						#in your own grid cell and the 26 neighbouring ones
+						for i_x in range(0,3):
+							for i_y in range(0,3):
+								for i_z in range(0,3):
+									#counter including neighbour cells
+									i_help_x = counter_x + i_x -1 #(0 1 2) -1 -> (-1 0 1)
+									i_help_y = counter_y + i_y -1
+									i_help_z = counter_z + i_z -1
+									#manage pbc
+									if i_help_x==-1: i_help_x = box_max_x #python counting
+									if i_help_x==box_max_x: i_help_x = 0
+									if i_help_y==-1: i_help_y = box_max_y
+									if i_help_y==box_max_y: i_help_y = 0
+									if i_help_z==-1: i_help_z = box_max_z
+									if i_help_z==box_max_z: i_help_z = 0
+									#print str(i_help_x)+'	'+str(i_help_y)+'	'+str(i_help_z)
+									for DIPBI_count in range(0,len(grid_dpbi_array[i_help_x][i_help_y][i_help_z])-1):
+										ortsvec1 = dpbi_normal_vectors[grid_dpbi_array[i_help_x][i_help_y][i_help_z][DIPBI_count]+1]
+										ortsvec2 = c5_vectors[grid_P3HT_array[counter_x][counter_y][counter_z][P3HT_count]+1]
+										normalvec1 =dpbi_normal_vectors[grid_dpbi_array[i_help_x][i_help_y][i_help_z][DIPBI_count]]
+										normalvec2 =c5_vectors[grid_P3HT_array[counter_x][counter_y][counter_z][P3HT_count]]
+										distance = np.linalg.norm(ortsvec1 - ortsvec2)
+										if distance<1.0:
+											angle_corr = np.arccos(np.dot(normalvec1,normalvec2))*360/(2*np.pi)
+											vec_corr.write(str(timestep) +'	' + str(distance)+'	' + str(angle_corr)+  '\n')
+				
+								
+	vec_corr.close()	
+	#control_out.close()			
+	return
+######## End of Calculate angle between nearby DIPBI of C5 rings
+
+
+
+
+
+######## Calculate Center of Mass of a molecule
+def mol_COM(ATOM_list, startatom, atoms_per_mol, atoms_skip, number_of_mol, atoms_per_cluster, num_of_atoms, mass_list, time_step):	
+	COM_out=open("COM.xyz",'a')
+	#boxX = 126.6
+	#boxY = 130.3
+	#boxZ = 130.0
+	#write number of molecules for xyz format
+	COM_out.write(str(num_of_atoms/(atoms_per_clust)*number_of_mol) + '\n')
+	#write timestep to xyz
+	COM_out.write(str(time_step) + '\n')
+	for clust_count in range(0,(num_of_atoms/atoms_per_cluster)):
+		for i_dpbi in range(0,number_of_mol):
+			M=0
+			#get the 'middle' of the DPI molecule
+			i = clust_count*atoms_per_cluster + i_dpbi*atoms_per_mol + startatom + atoms_skip*i_dpbi
+			r = []
+			r_com = np.asarray([0, 0, 0])
+			#read data into a coord list to remove the box
+			for i_cou in range(0,atoms_per_mol):
+				r.append([ATOM_list[i+i_cou][4],ATOM_list[i+i_cou][5],ATOM_list[i+i_cou][6]])
+			#remove the box, use r(0) as reference. if the dinstance to r(0) is bigger than /2boxlength -> move it
+	#		for cow in range(1,len(r)-1):
+	#			if (r[0][0] - r[cow][0])<-boxX/2: r[cow][0] = r[cow][0]-boxX
+	#			if (r[0][0] - r[cow][0])>boxX/2: r[cow][0] = r[cow][0]+boxX
+	#			if (r[0][1] - r[cow][0])<-boxY/2: r[cow][1] = r[cow][1]-boxY
+	#			if (r[0][1] - r[cow][0])>boxY/2: r[cow][1] = r[cow][1]+boxY
+	#			if (r[0][2] - r[cow][0])<-boxZ/2: r[cow][2] = r[cow][2]-boxZ
+	#			if (r[0][2] - r[cow][0])>boxZ/2: r[cow][2] = r[cow][2]+boxZ
+			for i_cou in range(0,atoms_per_mol):
+				r_current = np.asarray(r[i_cou])
+				r_com = r_com + (r_current * mass_list[i_cou])
+				M = M + mass_list[i_cou]
+			r_com = 1/M * r_com
+			#just using the 'H' for consistent xyz format
+			COM_out.write('H' + '	' + str(r_com*10).replace('[', '').replace(']','') + '\n')
+	COM_out.close()
+	return
+######## End of Calculate Center of Mass of a molecule
+
+
+
+
+######## Calculate normal-Vectors of DIPBI molecule surface
+def dpi_vectors(ATOM_list, num_of_atoms, time_step, id1, id2, id3, id4, id5, id6, did1, did2, did3, did4, atoms_per_mol, mol_per_clust, atoms_per_clust, startatom, atoms_t_skip):
+	"""calculates the normal Vectors of DIPBI-molecule-surface """	
+	DPI_out=open("normalvectors.xyz",'a')
+	Vorzugsrichtung_out=open("Vorzugsrichtung.dat",'a')
+#	boxX = 126.6
+#	boxY = 130.3
+#	boxZ = 130.0
+
+#	for testing -> will generate a .xyz trajectory
+#	get number of dipbi for a 3/4 ratio per cluster
+	DPI_out.write(str((num_of_atoms*mol_per_clust*mol_per_clust/atoms_per_clust)-mol_per_clust**2)+'\n')
+	DPI_out.write(str(timestep)+'\n')
+
+	vorzugsvektor = np.asarray([0,0,0])
+	for clust_count in range(0,(num_of_atoms/atoms_per_clust)):
+		for i_dpbi in range(0,mol_per_clust):
+			r = []
+			#get the 'middle' of the DPI molecule
+			i = clust_count*atoms_per_clust + i_dpbi*atoms_per_mol + i_dpbi*atoms_t_skip + startatom
+
+			#read data into a coord list to remove the box
+			r.append([ATOM_list[i+id1][4],ATOM_list[i+id1][5],ATOM_list[i+id1][6]])
+			r.append([ATOM_list[i+id2][4],ATOM_list[i+id2][5],ATOM_list[i+id2][6]])
+			r.append([ATOM_list[i+id3][4],ATOM_list[i+id3][5],ATOM_list[i+id3][6]])
+			r.append([ATOM_list[i+id4][4],ATOM_list[i+id4][5],ATOM_list[i+id4][6]])
+			r.append([ATOM_list[i+id5][4],ATOM_list[i+id5][5],ATOM_list[i+id5][6]])
+			r.append([ATOM_list[i+id6][4],ATOM_list[i+id6][5],ATOM_list[i+id6][6]])
+			#vectors for direction of normal vector
+			r.append([ATOM_list[i+did1][4],ATOM_list[i+did1][5],ATOM_list[i+did1][6]])
+			r.append([ATOM_list[i+did2][4],ATOM_list[i+did2][5],ATOM_list[i+did2][6]])
+			r.append([ATOM_list[i+did3][4],ATOM_list[i+did3][5],ATOM_list[i+did3][6]])
+			r.append([ATOM_list[i+did4][4],ATOM_list[i+did4][5],ATOM_list[i+did4][6]])
+			
+			#remove the box, use r(0) as reference. if the dinstance to r(0) is bigger than /2boxlength -> move it
+#			for cow in range(1,len(r)-1):
+#				if (r[0][0] - r[cow][0])<-boxX/2: r[cow][0] = r[cow][0]-boxX
+#				if (r[0][0] - r[cow][0])>boxX/2: r[cow][0] = r[cow][0]+boxX
+#				if (r[0][1] - r[cow][0])<-boxY/2: r[cow][1] = r[cow][1]-boxY
+#				if (r[0][1] - r[cow][0])>boxY/2: r[cow][1] = r[cow][1]+boxY
+#				if (r[0][2] - r[cow][0])<-boxZ/2: r[cow][2] = r[cow][2]-boxZ
+#				if (r[0][2] - r[cow][0])>boxZ/2: r[cow][2] = r[cow][2]+boxZ
+
+			#save the vectors for centering
+			vec1 = np.asarray([r[0][0],r[0][1],r[0][2]])
+			vec2 = np.asarray([r[1][0],r[1][1],r[1][2]])
+			mittelpunkt_dpi = (vec1 + vec2)/2.0
+
+			#save the reference vectors
+			#second int (e.g. [i+'second_int'+386]) is the index of the reference vector in the original dpi.g96
+			ref_vec1 = np.asarray([r[2][0],r[2][1],r[2][2]])
+			ref_vec2 = np.asarray([r[3][0],r[3][1],r[3][2]])
+			ref_vec3 = np.asarray([r[4][0],r[4][1],r[4][2]])
+			ref_vec4 = np.asarray([r[5][0],r[5][1],r[5][2]])
+
+			#direction vectors
+			dir_vec1 = np.asarray([r[6][0],r[6][1],r[6][2]])
+			dir_vec2 = np.asarray([r[7][0],r[7][1],r[7][2]])
+			dir_vec3 = np.asarray([r[8][0],r[8][1],r[8][2]])
+			dir_vec4 = np.asarray([r[9][0],r[9][1],r[9][2]])
+			dir_vec = (dir_vec1 + dir_vec2 + dir_vec3 + dir_vec4)/4.0
+			dir_vec = mittelpunkt_dpi - dir_vec
+
+			#get the cross product of ref_vectors
+			normal_vec1=np.cross(ref_vec1-mittelpunkt_dpi, ref_vec2-mittelpunkt_dpi)
+			normal_vec2=np.cross(ref_vec2-mittelpunkt_dpi, ref_vec3-mittelpunkt_dpi)
+			normal_vec3=np.cross(ref_vec1-mittelpunkt_dpi, ref_vec4-mittelpunkt_dpi)
+			normal_vec4=np.cross(ref_vec3-mittelpunkt_dpi, ref_vec1-mittelpunkt_dpi)
+
+			#normalize
+			normal_vec1=normal_vec1/np.linalg.norm(normal_vec1)
+			normal_vec2=normal_vec2/np.linalg.norm(normal_vec2)
+			normal_vec3=normal_vec3/np.linalg.norm(normal_vec3)
+			normal_vec4=normal_vec4/np.linalg.norm(normal_vec4)
+			
+			#calculate average of the 4 vectors
+			normal_vec = normal_vec1+normal_vec2+normal_vec3+normal_vec4
+			normal_vec = normal_vec/np.linalg.norm(normal_vec)
+			
+
+			#change direction according to bending
+			if normal_vec[0]!=0 and dir_vec[0]!=0:
+				if normal_vec[0]/abs(normal_vec[0])!=dir_vec[0]/abs(dir_vec[0]):
+					normal_vec[0] = -normal_vec[0]
+			if normal_vec[1]!=0 and dir_vec[1]!=0:
+				if normal_vec[1]/abs(normal_vec[1])!=dir_vec[1]/abs(dir_vec[1]):
+					normal_vec[1] = -normal_vec[1]
+			if normal_vec[2]!=0 and dir_vec[2]!=0:
+				if normal_vec[2]/abs(normal_vec[2])!=dir_vec[2]/abs(dir_vec[2]):
+					normal_vec[2] = -normal_vec[2]
+
+			
+			#check for a vorzugsvektor
+			vorzugsvektor = vorzugsvektor + normal_vec
+
+	# 	DPI_out.write(str(mittelpunkt_dpi)+ str(normal_vec1)+ str(normal_vec2)+ str(normal_vec3)+ str(normal_vec4)+ '\n')
+			#DPI_out.write(str(time_step) +'	' str(mittelpunkt_dpi+dir_vec) +'	'+ str(mittelpunkt_dpi+normal_vec)+ '\n')
+		#	if clust_count == 0:
+		#	for testing -> will generate a .xyz trajectory
+		#		DPI_out.write('O' +'	'+ str((mittelpunkt_dpi+dir_vec)*10).replace('[', '').replace(']','') +'\n')
+		#		DPI_out.write('H' +'	'+ str((mittelpunkt_dpi+normal_vec)*10).replace('[', '').replace(']','')+ '\n')
+			DPI_out.write('O' +'	'+ str((mittelpunkt_dpi+normal_vec)*10).replace('[', '').replace(']','')+ '\n')
+			DPI_out.write('H' +'	'+ str((normal_vec)*10).replace('[', '').replace(']','')+ '\n')
+			DPI_out.write('C' +'	'+ str((mittelpunkt_dpi)*10).replace('[', '').replace(']','')+ '\n')
+
+	#calculate a vorzugsvektor as sum over DIPBI normal vectors divided by number of DPBI vectors
+	vorzugsvektor = vorzugsvektor/(num_of_atoms*mol_per_clust/(atoms_per_clust))
+	Vorzugsrichtung_out.write(str((vorzugsvektor)*10).replace('[', '').replace(']','')+'\n')
+	DPI_out.close()
+	return
+######## End of Calculate normal-Vectors of DIPBI molecule surface
+
+
+
+
+######## calculate angles between the C5 Rings in the P3HT
+def C5_P3HT_angles(ATOM_list, num_of_atoms, time_step, id1, id2, id3, id4, id5, atoms_t_skip, atms_in_clulster, c5_per_cluster):
+	"""calculates the angles between the C5 Rings of the P3HT """
+	P3HT_out=open("P3HT_angles.dat",'a')
+	c5_vectors = []
+	c5_angles = []
+#	boxX = 117.52412
+#	boxY = 119.96168
+#	boxZ = 119.76404
+
+	for clust_count in range(0,(num_of_atoms/atms_in_clulster-1)):
+		i = clust_count*atms_in_clulster
+		for c5_count in range(0,c5_per_cluster):
+			#read data into a coord list to remove the box
+			r = []
+			r.append([ATOM_list[i+id1+atoms_t_skip*c5_count][4],ATOM_list[i+id1+atoms_t_skip*c5_count][5],ATOM_list[i+id1+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id2+atoms_t_skip*c5_count][4],ATOM_list[i+id2+atoms_t_skip*c5_count][5],ATOM_list[i+id2+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id3+atoms_t_skip*c5_count][4],ATOM_list[i+id3+atoms_t_skip*c5_count][5],ATOM_list[i+id3+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id4+atoms_t_skip*c5_count][4],ATOM_list[i+id4+atoms_t_skip*c5_count][5],ATOM_list[i+id4+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id5+atoms_t_skip*c5_count][4],ATOM_list[i+id5+atoms_t_skip*c5_count][5],ATOM_list[i+id5+atoms_t_skip*c5_count][6]])
+			
+			#remove the box, use r(0) as reference. if the dinstance to r(0) is bigger than /2boxlength -> move it
+		#	for cow in range(1,len(r)-1):
+		#		if (r[0][0] - r[cow][0])<-boxX/2: r[cow][0] = r[cow][0]-boxX
+		#		if (r[0][0] - r[cow][0])>boxX/2: r[cow][0] = r[cow][0]+boxX
+		#		if (r[0][1] - r[cow][0])<-boxY/2: r[cow][1] = r[cow][1]-boxY
+		#		if (r[0][1] - r[cow][0])>boxY/2: r[cow][1] = r[cow][1]+boxY
+		#		if (r[0][2] - r[cow][0])<-boxZ/2: r[cow][2] = r[cow][2]-boxZ
+		#		if (r[0][2] - r[cow][0])>boxZ/2: r[cow][2] = r[cow][2]+boxZ
+			
+			#get the vectors of one c5 ring
+			vec1 = np.asarray(r[0])
+			vec2 = np.asarray(r[1])
+			vec3 = np.asarray(r[2])
+			vec4 = np.asarray(r[3])
+			vec5 = np.asarray(r[4])
+			#get the middle of the c5 ring
+			c5_vectors.append((vec1+vec2+vec3+vec4+vec5)/5.0)	
+		for c5_count in range(0,c5_per_cluster-2):
+			#calculate vectors between 2 c5 rings
+			vec1 = np.asarray(c5_vectors[0 + c5_count])-np.asarray(c5_vectors[1 + c5_count])
+			vec2 = np.asarray(c5_vectors[1 + c5_count])-np.asarray(c5_vectors[2 + c5_count])
+			#get the angle using the dot product
+			angle_current = np.arccos(np.dot(vec1,vec2)/(np.linalg.norm(vec1)*np.linalg.norm(vec2)))*360/(2*np.pi) 
+			c5_angles.append(angle_current)
+		P3HT_out.write(str(time_step) +'	'+ str(clust_count) +'	'+ str(c5_angles[:]).replace(',', '').replace('[', '').replace(']','') +'  '+ str(sum(c5_angles[:])/len(c5_angles)) + '\n')
+		c5_vectors = []
+		c5_angles = []	
+
+	P3HT_out.close()
+######## End of calculate angles between the C5 Rings in the P3HT
+
+
+
+
+######## calculate sidechains
+def p3_sc(ATOM_list, num_of_atoms, time_step, sc1, sc2, atoms_t_skip, atms_in_cluster, c5_per_cluster):
+	"""calculates the angles between the C5 Rings of the P3HT """
+	sc_out=open("P3_sidechains.dat",'a')
+
+	for clust_count in range(0,(num_of_atoms/atms_in_cluster-1)):
+		i = clust_count*atms_in_cluster
+		dist = 0
+		for c5_count in range(0,c5_per_cluster):
+			#read data into a coord list to remove the box
+			r = []
+			r.append([ATOM_list[i+sc1+atoms_t_skip*c5_count][4],ATOM_list[i+sc1+atoms_t_skip*c5_count][5],ATOM_list[i+sc1+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+sc2+atoms_t_skip*c5_count][4],ATOM_list[i+sc2+atoms_t_skip*c5_count][5],ATOM_list[i+sc2+atoms_t_skip*c5_count][6]])
+			
+			#remove the box, use r(0) as reference. if the dinstance to r(0) is bigger than /2boxlength -> move it
+		#	for cow in range(1,len(r)-1):
+		#		if (r[0][0] - r[cow][0])<-boxX/2: r[cow][0] = r[cow][0]-boxX
+		#		if (r[0][0] - r[cow][0])>boxX/2: r[cow][0] = r[cow][0]+boxX
+		#		if (r[0][1] - r[cow][0])<-boxY/2: r[cow][1] = r[cow][1]-boxY
+		#		if (r[0][1] - r[cow][0])>boxY/2: r[cow][1] = r[cow][1]+boxY
+		#		if (r[0][2] - r[cow][0])<-boxZ/2: r[cow][2] = r[cow][2]-boxZ
+		#		if (r[0][2] - r[cow][0])>boxZ/2: r[cow][2] = r[cow][2]+boxZ
+			
+			#save as np array
+			vec1 = np.asarray(r[0])
+			vec2 = np.asarray(r[1])
+			#get distance
+			dist += np.linalg.norm(vec1 - vec2)
+
+		sc_out.write(str(time_step) +'	'+ str(dist) + '\n')
+
+	sc_out.close()
+######## End of calculate sidechains
+
+
+
+
+######## calculate "planaritaet" between the C5 Rings in the P3HT
+def C5_P3HT_planritaet(ATOM_list, num_of_atoms, time_step, id1, id2, id3, id4, id5, atoms_t_skip, atms_in_clulster, c5_per_cluster):
+	"""calculates the angles between the C5 Rings of the P3HT """
+	C5_planaritaet_out=open("C5_planaritaet.dat",'a')
+#	control_out=open("C5_planaritaet_check.xyz",'w')
+	c5_vectors = []
+	c5_angles = []
+#	boxX = 117.52412
+#	boxY = 119.96168
+#	boxZ = 119.76404
+
+	for clust_count in range(0,(num_of_atoms/atms_in_clulster-1)):
+		i = clust_count*atms_in_clulster
+		for c5_count in range(0,c5_per_cluster):
+			#read data into a coord list to remove the box
+			r = []
+			r.append([ATOM_list[i+id1+atoms_t_skip*c5_count][4],ATOM_list[i+id1+atoms_t_skip*c5_count][5],ATOM_list[i+id1+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id2+atoms_t_skip*c5_count][4],ATOM_list[i+id2+atoms_t_skip*c5_count][5],ATOM_list[i+id2+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id3+atoms_t_skip*c5_count][4],ATOM_list[i+id3+atoms_t_skip*c5_count][5],ATOM_list[i+id3+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id4+atoms_t_skip*c5_count][4],ATOM_list[i+id4+atoms_t_skip*c5_count][5],ATOM_list[i+id4+atoms_t_skip*c5_count][6]])
+			r.append([ATOM_list[i+id5+atoms_t_skip*c5_count][4],ATOM_list[i+id5+atoms_t_skip*c5_count][5],ATOM_list[i+id5+atoms_t_skip*c5_count][6]])
+			
+			#remove the box, use r(0) as reference. if the dinstance to r(0) is bigger than /2boxlength -> move it
+		#	for cow in range(1,len(r)-1):
+		#		if (r[0][0] - r[cow][0])<-boxX/2: r[cow][0] = r[cow][0]-boxX
+		#		if (r[0][0] - r[cow][0])>boxX/2: r[cow][0] = r[cow][0]+boxX
+		#		if (r[0][1] - r[cow][0])<-boxY/2: r[cow][1] = r[cow][1]-boxY
+		#		if (r[0][1] - r[cow][0])>boxY/2: r[cow][1] = r[cow][1]+boxY
+		#		if (r[0][2] - r[cow][0])<-boxZ/2: r[cow][2] = r[cow][2]-boxZ
+		#		if (r[0][2] - r[cow][0])>boxZ/2: r[cow][2] = r[cow][2]+boxZ
+			
+			#get the vectors of one c5 ring
+			vec1 = np.asarray(r[0])
+			vec2 = np.asarray(r[1])
+			vec3 = np.asarray(r[2])
+			vec4 = np.asarray(r[3])
+			vec5 = np.asarray(r[4])
+			#get the middle of the c5 ring
+			mittel_c5 = (vec1+vec2+vec3+vec4+vec5)/5.0
+			#calculate the normal vector on c5 ring as average
+			norm_vec1 = np.cross(mittel_c5-vec1,mittel_c5-vec2)
+			norm_vec2 = np.cross(mittel_c5-vec1,mittel_c5-vec3)
+			norm_vec3 = np.cross(mittel_c5-vec1,mittel_c5-vec4)
+			norm_vec4 = np.cross(mittel_c5-vec1,mittel_c5-vec5)
+			#normalize the vectors
+			# - from visualization in VMD
+			norm_vec1 = -norm_vec1/np.linalg.norm(norm_vec1)
+			norm_vec2 = -norm_vec2/np.linalg.norm(norm_vec2)
+			norm_vec3 = norm_vec3/np.linalg.norm(norm_vec3)
+			norm_vec4 = norm_vec4/np.linalg.norm(norm_vec4)
+			average = (norm_vec1 + norm_vec2 + norm_vec3 + norm_vec4)
+			average = average/np.linalg.norm(average)
+			c5_vectors.append(average)
+		#	if clust_count == 0:	
+		#		control_out.write('O' + '	' + str((average+mittel_c5)*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('C' + '	' + str((mittel_c5+norm_vec1)*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('S' + '	' + str((mittel_c5+norm_vec2)*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('He' + '	' + str((mittel_c5+norm_vec3)*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('Ne' + '	' + str((mittel_c5+norm_vec4)*10).replace('[', '').replace(']','') + '\n')
+		#		control_out.write('H' + '	' + str(mittel_c5*10).replace('[', '').replace(']','') + '\n')
+		for c5_count in range(0,c5_per_cluster-1):
+			#calculate angle between neighbouring vectors on c5 rings
+			vec1 = c5_vectors[0 + c5_count]
+			vec2 = c5_vectors[1 + c5_count]
+			#get the angle using the dot product
+			angle_current = np.arccos(np.dot(vec1,vec2)/(np.linalg.norm(vec1)*np.linalg.norm(vec2)))*360/(2*np.pi)
+			c5_angles.append(angle_current)
+		c5_vectors = []
+		C5_planaritaet_out.write(str(time_step) +'	'+str(c5_angles[:]) + '	'+ str(sum(c5_angles[:])/float(len(c5_angles))) + '\n')
+		c5_angles = []
+	
+#	control_out.close()
+	C5_planaritaet_out.close()
+######## End of calculate 'planaritaet' between the C5 Rings in the P3HT
+
+	
+
+
+
+######## In this part the data is read and the scripts are applied
+# variables to check if we are beginning to read a new frame with string "header"
+begin=1
+header=''
+
+while 1:
+	line1 = coords.readline()		#to avoid smaug killing
+	if not line1:
+		break
+
+	line=line1.split()[0]			#manage keywords
+	
+	#check if we are beginning to read a new frame
+	if (begin==1):     
+		header=line
+		begin=0
+		print header
+		
+	if line==header:	coorddata=1
+	
+
+	if coorddata == 1:
+		if ipoint==0:
+			timestep = float(line1.split()[-1])
+		#enable start at a specific time		
+		if no_timestep == 0:		
+			if timestep<float(sys.argv[4]):
+				coorddata = 0 
+				continue
+		#enable end at specific time		
+		if no_end_timestep == 0:		
+			if timestep>float(sys.argv[5]):
+				break
+		if ipoint==1:
+			number_of_atoms=int(line1.split()[0])
+		if ipoint>1 and ipoint<(number_of_atoms+2):						#+2 to skip top lines in .gro file
+			#building .gro frame as a list [resnr, resname, atomname, atomnr, x, y, z]
+			inputDATA.append([int(line1[0:5]),str(line1[5:10]),str(line1[10:15]),int(line1[15:20]),float(line1[20:28]),float(line1[28:36]),float(line1[36:44])])
+#			count_atoms = count_atoms + 1
+		if ipoint > 1 and ipoint == number_of_atoms+2:
+			box = line1
+			box_X = float(line1.split()[0])
+			box_Y = float(line1.split()[1])
+			box_Z = float(line1.split()[2])
+			coordata = 0
+			ipoint = 0
+			##### from here you can run your .gro analyse scripts. the data is stored in inputDATA frame by frame
+			##### if the keyword is set to 2 it means the keyword (i.e. ATOMD) and 'END' was read properly
+
+#			if atodistkey == 2:
+	
+#			if moldistkey == 2:	
+
+#			if comdistkey == 2:
+	
+#			if angleskey == 2:
+
+			if vector_correlation_key == 2:
+				#neighbour_direction(ATOM_list, boxX, boxY, boxZ, num_of_atoms, time_step)
+				if timestep%nd_step == 0:
+					neighbour_direction(inputDATA, box_X, box_Y, box_Z, number_of_atoms, timestep, D_id1, D_id2, D_id3, D_id4, D_id5, D_id6, D_atoms_per_clust, D_mol_per_clust, D_atoms_per_mol, D_startatom, D_atoms_t_skip, nd_id1, nd_id2, nd_id3, nd_id4, nd_id5, nd_atoms_t_skip, nd_c5_per_cluster, nd_atms_in_clulster)
+
+			if com_key == 2:
+				if (timestep%COM_step) == 0:
+					mol_COM(inputDATA, start_atom, atoms_per_molecule, atoms_to_skip, num_of_mol,  atoms_per_clust, number_of_atoms, masses_list, timestep)
+			#		mol_COM(inputDATA, 386, 118, 740, number_of_atoms, masses_list, timestep)	
+		
+			if C5_P3HT_ang_key == 2:
+				if (timestep%C5_P3HT_step) == 0:	#print data every C5_P3HT_step frame (C5_P3HT_step is in same units as timestep from .gro file)
+					C5_P3HT_angles(inputDATA,number_of_atoms,timestep,atomid1, atomid2, atomid3, atomid4, atomid5, atoms_to_skip, atoms_in_cluster, no_of_c5_per_cluster)
+
+			if c5_planaritaet_key == 2:
+				if (timestep%C5_plan_step) == 0:	#print data every C5_P3HT_step frame (C5_P3HT_step is in same units as timestep from .gro file)
+					C5_P3HT_planritaet(inputDATA,number_of_atoms,timestep, C5_plan_atomid1, C5_plan_atomid2, C5_plan_atomid3, C5_plan_atomid4, C5_plan_atomid5, C5_plan_atoms_to_skip, C5_plan_atoms_in_cluster, C5_plan_no_of_c5_per_cluster)
+
+			if dipbi_vec_key == 2:
+				if timestep%dipbi_vec_step == 0:
+					dpi_vectors(inputDATA,number_of_atoms,timestep,dv_id1, dv_id2, dv_id3, dv_id4, dv_id5, dv_id6, dv_did1, dv_did2, dv_did3, dv_did4, dv_atoms_per_mol, dv_mol_per_clust, atoms_per_clust, dv_startatom, dv_atoms_to_skip)
+
+			if p3_sidechain_key == 2:
+				if timestep%p3_sc_step == 0:
+					p3_sc(inputDATA,number_of_atoms,timestep, sc1, sc2, atoms_to_skip, atoms_in_cluster, no_of_c5_per_cluster)
+							
+			##### end of analyze part. please dont modify the following code
+			inputDATA = []
+			ipoint = 0
+			reset = 1
+		if reset == 1:
+			reset = 0
+		else:
+			ipoint = ipoint + 1
+coords.close()
