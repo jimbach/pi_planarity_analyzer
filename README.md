@@ -61,6 +61,12 @@ See how planar a chain of C5 is: C5_PLANARITAET
 Angle between C5-ring i -> i+1 and i+1 -> i+2: C5_P3HT_ANGLES
 All keywords must be ended with END after definition of parameters.
 
+Plotting the output:
+The output of a normal vector computation is stored in a normalvectors.xyz file. You can open this file for analysis in VMD, where the C atoms are the centers calculated in between id1 and id2 and the O atoms are the "normal vectors". The H atoms are the normal vectors not centered on the molecule but at 0, to judge a predominant orientation optically.
+If you want to plot arrows in VMD for the normal vectors use the script draw_vectors_in_vmd.tcl found in the "example normalvectors" directory. Load your "normalvectors.xyz" file in VMD and set it as "top" (T in the VMD main window).
+Now import the .tcl script (e.g. by clicking on "open visualization state" and then browsing to the directory containing .tcl while making sure you have "all files" displayed and not only ".vmd" files) and then clicking on load.
+Now you can type "drawallvectors" in the VMD console and you should see all your normal vectors. If you now load your original ".gro" file, you can display the vectors on top of your molecules.
+
 EXAMPLES for .fcf files:
 
 #------- NORMAL VECTOR EXAMPLE --------------
