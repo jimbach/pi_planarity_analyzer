@@ -69,11 +69,11 @@ EXAMPLES for .fcf files:
 #after this a "vorzugsvectors" is calculated, as a sum over all normal vectors
 #input: timestep, indx1, indx2, indx3, indx4, indx5,
 #indx6, direction_indx1, direction_indx2, direction_indx3, direction_indx4, number_of_atoms_per_mol, number_of_mol_per_cluster, atoms_per_cluster, atoms_to_skip_until_next_mol_in_cluster
-# the id1 id2 .. id6 are the indices within the molecule, i.e. first atom in molecule = 1 see definition_of_normalvector_pisystem.png
-# from the 4 direction_indx1...4 the geometric center is calculated and then is is compared if the normal vector calculated prior
-# has the same direction as the vector from the middle of id1 id2 to the geometric center of direction_indx1...4
-# if the direction of one component (x,y,z) is not the same the direction of the normal vector is changed
-# this is useful for molecules where the bending of the molecule should be incorporated into the normal vector!
+#the id1 id2 .. id6 are the indices within the molecule, i.e. first atom in molecule = 1 see definition_of_normalvector_pisystem.png
+#from the 4 direction_indx1...4 the geometric center is calculated and then is is compared if the normal vector calculated prior
+#has the same direction as the vector from the middle of id1 id2 to the geometric center of direction_indx1...4
+#if the direction of one component (x,y,z) is not the same the direction of the normal vector is changed
+#this is useful for molecules where the bending of the molecule should be incorporated into the normal vector!
 NORMALVEC
 1 23 53 43 28 19 54 69 42 31 4 118 3 740 386 0
 END
@@ -94,9 +94,9 @@ END
 #input: timestep, id1, id2, id3, id4, id5, id6, atoms_in_clust, num_mol1_per_clust, atms_per_mol_1, startatom_mol_1, atms_to_skip_between_vec_calc, id_2_1, id_2_2, id_2_3, id_2_4, id_2_5, atms_to_skip_between_vec_calc, vectos_per_clust, atms_per_clust
 # vectors are: id1 and id2, between them is the middle of the first molecule. id3 to id6 are the reference vectors to calculate the normal vector with respect to the center of the molecule.
 #for the vectors see definition_of_normalvector and definition_of_normalvector_pisystem
-# the id1 id2 .. id6 are the indices within the molecule, i.e. first atom in molecule = 1 see definition_of_normalvector_pisystem.png
-# the id_2_1 id_2_2 .. id_2_5 are the indices within the molecule, i.e. first atom in molecule = 1 see definition_of_normalvector.png
-# for 1 P3HT (386 atoms) followed by 3 DIPBI (each 118 atoms) (740 atoms per cluster)
+#the id1 id2 .. id6 are the indices within the molecule, i.e. first atom in molecule = 1 see definition_of_normalvector_pisystem.png
+#the id_2_1 id_2_2 .. id_2_5 are the indices within the molecule, i.e. first atom in molecule = 1 see definition_of_normalvector.png
+#for 1 P3HT (386 atoms) followed by 3 DIPBI (each 118 atoms) (740 atoms per cluster)
 VEC_CORRELATION
 1 23 53 43 28 19 54 740 3 118 386 0 1 2 4 5 6 12 32 740
 END
