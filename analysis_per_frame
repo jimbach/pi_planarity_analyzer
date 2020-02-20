@@ -1,5 +1,11 @@
 #!/usr/bin/python
 
+##############################
+# pi_planarity_analyzer
+# 2020, Jim Bachmann
+#
+##############################
+
 import os,sys,numpy as np
 
 #######   28.07.2013 - analysis_per_frame   ########
@@ -72,7 +78,7 @@ while 1:
 	if cf_keyword=="MOLD":			moldistkey = 1
 	if cf_keyword=="COMD":			comdistkey = 1
 	if cf_keyword=="ANGLES":		angleskey = 1
-	if cf_keyword=="DPIVEC":		dipbi_vec_key = 1
+	if cf_keyword=="NORMALVEC":		normal_vec_key = 1
 	if cf_keyword=="C5_P3HT_ANGLES":	C5_P3HT_ang_key = 1
 	if cf_keyword=="COM_MOL":		com_key = 1
 	if cf_keyword=="VEC_CORRELATION":	vector_correlation_key = 1
@@ -105,15 +111,13 @@ while 1:
 			continue
 		ANGLES_list.append([cf_line.split()])
 
-	if dipbi_vec_key == 1:
+	if normal_vec_key == 1:
 		if len(cf_line.split())>1:
 			tmplist = map(lambda y:int(y), cf_line.split())
 			dipbi_vec_step, dv_id1, dv_id2, dv_id3, dv_id4, dv_id5, dv_id6, dv_did1, dv_did2, dv_did3, dv_did4, dv_atoms_per_mol, dv_mol_per_clust, atoms_per_clust, dv_startatom, dv_atoms_to_skip =tmplist
 
 		if cf_keyword == 'END':
-			dipbi_vec_key = 2
-		#	DPI_out=open("DPI_vectors.dat",'w')	#erases data
-		#	DPI_out.close()
+			normal_vec_key = 2
 
 	if vector_correlation_key == 1:
 		if len(cf_line.split())>1:
@@ -125,9 +129,6 @@ while 1:
 
 		if cf_keyword == 'END':
 			vector_correlation_key = 2
-		#	vec_corr=open("vector_correlation.dat",'w')	#erases data
-		#	vec_corr.close()
-			continue
 
 
 
@@ -137,8 +138,6 @@ while 1:
 			C5_plan_step, C5_plan_atomid1, C5_plan_atomid2, C5_plan_atomid3, C5_plan_atomid4, C5_plan_atomid5, C5_plan_atoms_to_skip, C5_plan_atoms_in_cluster, C5_plan_no_of_c5_per_cluster =tmplist1 
 		if cf_keyword == 'END':
 			c5_planaritaet_key = 2
-		#	P3HT_out=open("C5_planaritaet.dat",'w')	#erases data
-		#	P3HT_out.close()
 
 
 
@@ -174,8 +173,6 @@ while 1:
 			COM_step, start_atom, atoms_per_molecule, atoms_to_skip, num_of_mol, atoms_per_clust =tmplist 		
 		if cf_keyword == 'END':
 			com_key = 2
-		#	COM_out=open("COM.xyz",'w')		#erases data
-		#	COM_out.close()
 
 	if C5_P3HT_ang_key == 1:
 		if len(cf_line.split())>1:
@@ -183,8 +180,6 @@ while 1:
 			C5_P3HT_step, atomid1, atomid2, atomid3, atomid4, atomid5, atoms_to_skip, atoms_in_cluster, no_of_c5_per_cluster =tmplist 
 		if cf_keyword == 'END':
 			C5_P3HT_ang_key = 2
-		#	P3HT_out=open("P3HT_angles.dat",'w')	#erases data
-		#	P3HT_out.close()
 
 	if p3_sidechain_key == 1:
 		if len(cf_line.split())>1:
@@ -192,8 +187,6 @@ while 1:
 			p3_sc_step, sc1, sc2, atoms_to_skip, atoms_in_cluster, no_of_c5_per_cluster =tmplist 
 		if cf_keyword == 'END':
 			p3_sidechain_key = 2
-		#	P3HT_out=open("P3HT_angles.dat",'w')	#erases data
-		#	P3HT_out.close()	
 
 ######## Define your scripts here
 ######## They should be able to analyze one single .gro file
@@ -201,8 +194,7 @@ while 1:
 ######## Calculate angle between nearby DIPBI of C5 rings
 def neighbour_direction(ATOM_list, boxX, boxY, boxZ, num_of_atoms, time_step, Did1, Did2, Did3, Did4, Did5, Did6, Datoms_per_clust, Dmol_per_clust, Datoms_per_mol, Dstartatom, Datoms_t_skip, id1, id2, id3, id4, id5, atoms_t_skip, c5_per_cluster, atms_in_clulster):
 	dpbi_normal_vectors = []
-	#control_out=open("check.xyz",'w')
-	#calculate normal vectors on DPBI
+	
 
 	#atms_in_clulster = 740
 	#id1=1
@@ -300,15 +292,6 @@ def neighbour_direction(ATOM_list, boxX, boxY, boxZ, num_of_atoms, time_step, Di
 			r.append([ATOM_list[i+id4+atoms_t_skip*c5_count][4],ATOM_list[i+id4+atoms_t_skip*c5_count][5],ATOM_list[i+id4+atoms_t_skip*c5_count][6]])
 			r.append([ATOM_list[i+id5+atoms_t_skip*c5_count][4],ATOM_list[i+id5+atoms_t_skip*c5_count][5],ATOM_list[i+id5+atoms_t_skip*c5_count][6]])
 			
-			#remove the box, use r(0) as reference. if the dinstance to r(0) is bigger than /2boxlength -> move it
-	#		for cow in range(1,len(r)-1):
-	#			if (r[0][0] - r[cow][0])<-boxX/2: r[cow][0] = r[cow][0]-boxX
-	#			if (r[0][0] - r[cow][0])>boxX/2: r[cow][0] = r[cow][0]+boxX
-	#			if (r[0][1] - r[cow][0])<-boxY/2: r[cow][1] = r[cow][1]-boxY
-	#			if (r[0][1] - r[cow][0])>boxY/2: r[cow][1] = r[cow][1]+boxY
-	#			if (r[0][2] - r[cow][0])<-boxZ/2: r[cow][2] = r[cow][2]-boxZ
-	#			if (r[0][2] - r[cow][0])>boxZ/2: r[cow][2] = r[cow][2]+boxZ
-			
 			#get the vectors of one c5 ring
 			vec1 = np.asarray(r[0])
 			vec2 = np.asarray(r[1])
@@ -317,7 +300,6 @@ def neighbour_direction(ATOM_list, boxX, boxY, boxZ, num_of_atoms, time_step, Di
 			vec5 = np.asarray(r[4])
 			#middle of 5 vectors
 			c5_position = (vec1+vec2+vec3+vec4+vec5)/5.0
-	#		control_out.write('O' + '	' + str(c5_position*10).replace('[', '').replace(']','') + '\n')
 			
 			#get the normal vector on c5 ring as average over normal vectors
 			# - from visualization in VMD
@@ -833,7 +815,7 @@ while 1:
 				if (timestep%C5_plan_step) == 0:	#print data every C5_P3HT_step frame (C5_P3HT_step is in same units as timestep from .gro file)
 					C5_P3HT_planritaet(inputDATA,number_of_atoms,timestep, C5_plan_atomid1, C5_plan_atomid2, C5_plan_atomid3, C5_plan_atomid4, C5_plan_atomid5, C5_plan_atoms_to_skip, C5_plan_atoms_in_cluster, C5_plan_no_of_c5_per_cluster)
 
-			if dipbi_vec_key == 2:
+			if normal_vec_key == 2:
 				if timestep%dipbi_vec_step == 0:
 					dpi_vectors(inputDATA,number_of_atoms,timestep,dv_id1, dv_id2, dv_id3, dv_id4, dv_id5, dv_id6, dv_did1, dv_did2, dv_did3, dv_did4, dv_atoms_per_mol, dv_mol_per_clust, atoms_per_clust, dv_startatom, dv_atoms_to_skip)
 
