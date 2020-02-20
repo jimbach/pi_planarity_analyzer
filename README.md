@@ -92,7 +92,7 @@ END
 #------- VEC CORRELATION EXAMPLE ------------
 #calculates the vector correlation for 2 vectors, which are defined by reference vectors
 #input: timestep, id1, id2, id3, id4, id5, id6, atoms_in_clust, num_mol1_per_clust, atms_per_mol_1, startatom_mol_1, atms_to_skip_between_vec_calc, id_2_1, id_2_2, id_2_3, id_2_4, id_2_5, atms_to_skip_between_vec_calc, vectos_per_clust, atms_per_clust
-# vectors are: id1 and id2, between them is the middle of the first molecule. id3 to id6 are the reference vectors to calculate the normal vector with respect to the center of the molecule.
+#vectors are: id1 and id2, between them is the middle of the first molecule. id3 to id6 are the reference vectors to calculate the normal vector with respect to the center of the molecule.
 #for the vectors see definition_of_normalvector and definition_of_normalvector_pisystem
 #the id1 id2 .. id6 are the indices within the molecule, i.e. first atom in molecule = 1 see definition_of_normalvector_pisystem.png
 #the id_2_1 id_2_2 .. id_2_5 are the indices within the molecule, i.e. first atom in molecule = 1 see definition_of_normalvector.png
