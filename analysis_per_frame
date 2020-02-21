@@ -245,8 +245,8 @@ def neighbour_direction(ATOM_list, boxX, boxY, boxZ, num_of_atoms, time_step, Di
 			#get the cross product of ref_vectors
 			normal_vec1=np.cross(ref_vec1-mittelpunkt_dpi, ref_vec2-mittelpunkt_dpi)
 			normal_vec2=np.cross(ref_vec2-mittelpunkt_dpi, ref_vec3-mittelpunkt_dpi)
-			normal_vec3=np.cross(ref_vec1-mittelpunkt_dpi, ref_vec4-mittelpunkt_dpi)
-			normal_vec4=np.cross(ref_vec3-mittelpunkt_dpi, ref_vec1-mittelpunkt_dpi)
+			normal_vec3=np.cross(ref_vec3-mittelpunkt_dpi, ref_vec4-mittelpunkt_dpi)
+			normal_vec4=np.cross(ref_vec4-mittelpunkt_dpi, ref_vec1-mittelpunkt_dpi)
 
 			#normalize
 			normal_vec1=normal_vec1/np.linalg.norm(normal_vec1)
